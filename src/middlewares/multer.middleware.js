@@ -1,5 +1,6 @@
 import multer from "multer";
 
+//to handel file upload
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, "./public/temp");
