@@ -51,7 +51,7 @@ const userSchema = new Schema(
     }
 )
 
-// below code is for encryption of password
+//password encryption
 // pre works before saving the data
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) {
@@ -90,5 +90,7 @@ userSchema.methods.generateRefreshToken = function () {
         { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }
     )
 }
+//password encryption
+
 
 export const User = mongoose.model("User", userSchema)

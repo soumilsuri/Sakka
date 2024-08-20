@@ -1,10 +1,12 @@
 import {asyncHandler} from "../utils/asyncHandler.js";
 import {ApiError} from "../utils/ApiError.js";
 import {User} from "../models/user.model.js";
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
+import fs from 'fs';
 
 const registerUser = asyncHandler(async (req, res) => {
+    console.log(req.files);
     // Steps:-
     // 1.Get user details from frontend. for file upload we use multer middleware and call it in routes
     // 2.Validation - not empty.
@@ -36,10 +38,22 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // 4 check for avatar and coverImage
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path; // this give error if cover image is not given
+    let coverImageLocalPath
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0) {
+        coverImageLocalPath = req.files.coverImageLocalPath[0].path
+    }
 
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar is required")
+    }
+    // Log file paths to ensure they are correct
+    console.log("Avatar path: ", avatarLocalPath);
+    console.log("Cover image path: ", coverImageLocalPath);
+
+    // Check if the file exists before uploading
+    if (!fs.existsSync(avatarLocalPath)) {
+        throw new ApiError(400, "Avatar file not found at path");
     }
 
     // 5 upload avatar and coverimage on cloudinary
@@ -47,7 +61,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
     if (!avatar) {
-        throw new ApiError(400, "Avatar is required")
+        throw new ApiError(400, "Avatar upload failed")
     }
 
     // 6 create user object - entry in db
