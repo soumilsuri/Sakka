@@ -4,19 +4,25 @@ import {User} from "../models/user.model.js";
 import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import fs from 'fs';
+import { log } from "console";
+
+const generateAccessAndRefereshTokens = async(userId)=>{
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false})
+
+        return {accessToken, refreshToken}
+    } catch (error) {
+        throw new (500, "something went wrong while generating access and refresh tokens")
+    }
+}
 
 const registerUser = asyncHandler(async (req, res) => {
     console.log(req.files);
-    // Steps:-
-    // 1.Get user details from frontend. for file upload we use multer middleware and call it in routes
-    // 2.Validation - not empty.
-    // 3.Check if user exist.
-    // 4.check for images. check for avatar.
-    // 5.upload avatar on cloudinary.
-    // 6.create user object - entry in db.
-    // 7.remove password and refresh token.
-    // 8.check for user creation.
-    // 9.return res.
 
     // 1 file upload handeled in user.routes.js using multer
     const {username, email, fullName, password} = req.body;
@@ -74,7 +80,7 @@ const registerUser = asyncHandler(async (req, res) => {
         username: username.toLowerCase()
     })
 
-    // 7 and 8 remove pasword and referashToken, check for user creation in db
+    // 7 and 8 remove pasword and refereshToken, check for user creation in db
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     )
@@ -90,4 +96,90 @@ const registerUser = asyncHandler(async (req, res) => {
     
 })
 
-export {registerUser}
+//login user 
+const loginUser = asyncHandler(async (req, res)=>{
+    console.log('req.body:', req.body);
+    //1. req->data
+    const {username, email, password} = req.body
+    console.log('username:', username);
+    console.log('email:', email);
+    console.log('password:', password);
+
+    //2. validate data
+    if(!(username || email) ){
+        throw new ApiError(400, "username or email is required")
+    }
+    
+    //3. check if user exists
+    const user = await User.findOne({
+        $or: [{username}, {email}]
+    })
+    if(!user){
+        throw new ApiError(404, "User not found")
+    }
+
+    //4. check if password is correct
+    const isPasswordValid = await user.isPasswordCorrect(password)
+    if(!isPasswordValid){
+        throw new ApiError(400, "Incorrect password")
+    }
+
+    //5. generate access and refresh tokens
+    const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
+
+    //6. send cookies
+    const loggedInUser = User.findOne({_id}).select("-password -refreshToken")
+    
+    const options ={
+        http: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200, 
+            {
+                user: loggedInUser, accessToken, refreshToken
+            },
+            "User logged In Successfully"
+        )
+    )
+
+})
+
+//logout user
+const logoutUser = asyncHandler(async(req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $unset: {
+                refreshToken: 1 // this removes the field from document
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged Out"))
+})
+
+
+export {
+    registerUser,
+    loginUser,
+    logoutUser
+}
