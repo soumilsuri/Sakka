@@ -98,12 +98,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
 //login user 
 const loginUser = asyncHandler(async (req, res)=>{
-    console.log('req.body:', req.body);
+
     //1. req->data
     const {username, email, password} = req.body
-    console.log('username:', username);
-    console.log('email:', email);
-    console.log('password:', password);
 
     //2. validate data
     if(!(username || email) ){
@@ -128,7 +125,7 @@ const loginUser = asyncHandler(async (req, res)=>{
     const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
 
     //6. send cookies
-    const loggedInUser = User.findOne({_id}).select("-password -refreshToken")
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
     
     const options ={
         http: true,
